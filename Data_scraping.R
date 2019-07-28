@@ -1,40 +1,19 @@
-#install.packages("data.table")
-#install.packages("corrplot")
-#install.packages("GGally")
-#install.packages("tidyverse")
-#install.packages("PerformanceAnalytics")
-#install.packages("plotly")
-#install.packages("Hmisc")
-#install.packages("rvest")
-#install.packages("stringr")
-#install.packages("magrittr")
-#install.packages("leaps")
-#install.packages("pander")
-#install.packages("dplyr")
-#install.packages("rvest")
-#install.packages("XML")
-#install.packages("RCurl")
-#install.packages("cowplot")
-
-
 library(data.table)
-library(corrplot)
 library(GGally)
 library(tidyverse)
-library(PerformanceAnalytics)
-library(plotly)
-library(Hmisc)
 library(rvest)
 library(stringr)
 library(magrittr)
 library(leaps)
-library(pander)
 library(dplyr)
 library(rvest)
 library(XML)
 library(RCurl)
-library(cowplot)
 
+
+# Scrape college basketball stats -----------------------------------------------------------------------
+#Grab College basketball stats data from 2005-2019 from realGM
+#Parse through first 20 stat pages
 
 cbb_list <- list()
 for(year in c("2005","2006","2007","2008", "2009","2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018","2019")){
@@ -61,6 +40,9 @@ for(year in c("2005","2006","2007","2008", "2009","2010", "2011", "2012", "2013"
   cbb_list <- c(cbb_list,list(cbb))
 }
 
+# Scrape NBA stats -----------------------------------------------------------------------
+#Grab NBA basketball stats data from 2006-2019 from Basketball Reference
+
 nba_list <- list()
 for(nba_year in c("2006","2007","2008", "2009","2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018","2019")){
   main_url_nba1 <- "https://www.basketball-reference.com/leagues/NBA_"
@@ -82,17 +64,22 @@ for(nba_year in c("2006","2007","2008", "2009","2010", "2011", "2012", "2013", "
   nba_list <- c(nba_list,list(nba_data))
   
 }
+#Check to make sure data has been scraped and cleaned properly
+glimpse(cbb_list[[1]])
 glimpse(nba_list[[2]])
 
-#store each filtered dataset into new dataframes
-#analysis_stats does not contain player names
-#names_analysis_stats contains player names
-analysis_all_draft_data <- all_draft_data[,c(-1,-2,-21, -23)]
 
-names_analysis_all_draft_data <- all_draft_data[,c(-2,-21, -23)]
-glimpse(analysis_all_draft_data)
 
-glimpse(cbb_list[[1]])
+# Merge Datasets-------------------------------------------------------------------------
+# Create data subsets using merge function
+# Player X's college basketball stats from Year X will be used to predict NBA stats from Years X+1, 
+# X+2, and X+3
+# Merge function is used to merge CBB data from Year X to NBA data from Years X+1, X+2, X+3 with
+# respect to Player Name
+# store in list
+# NBA_1 = Year X+1...NBA_2 = Year X+2....
+# Final CBB season used for analysis = 2016
+
 
 stats_merge_multiple_seasons <- list()
 
@@ -120,6 +107,7 @@ for (z in 1:12) {
                             'def_reb_rate_NBA_3', 'tot_reb_rate_NBA_3', 'assist_rate_NBA_3', 'steal_rate_NBA_3', 'block_rate_NBA_3', 'turnover_rate_NBA_3', 'usage_rate_NBA_3',
                             'off_win_shares_NBA_3', 'def_win_shares_NBA_3', 'win_shares_NBA_3', 'win_shares_per_48_NBA_3', 'off_BPM_NBA_3', 'def_BPM_NBA_3', 'BPM_NBA_3','VORP_NBA_3')
   
+  #Stats are converted to useable format
   merge_data$true_shooting_pct_college <- as.numeric(merge_data$true_shooting_pct_college)
   merge_data$effective_field_goal_pct_college <- as.numeric(merge_data$effective_field_goal_pct_college)
   merge_data$total_shooting_pct_college <- as.numeric(merge_data$total_shooting_pct_college)
@@ -208,8 +196,8 @@ for (z in 1:12) {
   merge_data$BPM_NBA_3 <- as.numeric(merge_data$BPM_NBA_3)
   merge_data$VORP_NBA_3 <- as.numeric(merge_data$VORP_NBA_3)
   
-  # #remove duplicates and players greater than age 25
   
+  #remove duplicate information and players greater than age 25
   duplicate_check<-merge_data[,1]
   duplicates <- which(duplicated(duplicate_check))
   merge_data <- merge_data[-duplicates,]
@@ -217,46 +205,85 @@ for (z in 1:12) {
   improper_age <- which(merge_data$age_NBA_1 > 25)
   merge_data <- merge_data[-improper_age,]
   
+  #save merged data in csv files
   year <- toString(2005+z)
   filename <- paste0('statmerge_', year,'.csv')
   write.csv(merge_data, filename)
   stats_merge_multiple_seasons <- c(stats_merge_multiple_seasons, list(merge_data))
 }
-glimpse(stats_merge_multiple_seasons[[1]])
-write.csv(stats_merge_multiple_seasons[[1]], "datafilestuff.csv")
 
+#ensure data merged properly
+glimpse(stats_merge_multiple_seasons[[1]])
+
+#store each filtered dataset into new dataframe
 all_draft_data_multiple_seasons <-bind_rows(stats_merge_multiple_seasons)
 glimpse(all_draft_data_multiple_seasons)
 write.csv(all_draft_data_multiple_seasons, 'alldraftdata_multiple_seasons.csv')
 
 
 
-#Bring in predictors from 2018-19 data set to predict 2019-20 values
-prediction_draft_data <- cbb_list[[15]]
-write_csv(prediction_draft_data,"draftinfo.csv")
-colnames(prediction_draft_data) <- c('Player', 'team_name_college', 'true_shooting_pct_college', 'effective_field_goal_pct_college', 'total_shooting_pct_college',
+# Prediction data sets -----------------------------------------------------------------------
+# 2017-18 CBB data converted to useable dataset individually
+# Bring in predictors from 2017-18 data set compare 2018-19 predictions with actual values
+
+prediction_draft_data_2018 <- cbb_list[[14]]
+colnames(prediction_draft_data_2018) <- c('Player', 'team_name_college', 'true_shooting_pct_college', 'effective_field_goal_pct_college', 'total_shooting_pct_college',
                                      'off_reb_rate_college', 'def_reb_rate_college', 'tot_reb_rate_college', 'assist_rate_college', 'turnover_rate_college','steal_rate_college',
                                      'block_rate_college', 'usage_rate_college', 'pure_point_rating_college', 'points_per_shot_college', 'off_rating_college', 'def_rating_college',
                                      'net_rating_college', 'floor_impact_counter_college', 'PER_college')
-prediction_draft_data$Player <- as.character(prediction_draft_data$Player)
-prediction_draft_data$team_name_college <- as.character(prediction_draft_data$team_name_college)
-prediction_draft_data$true_shooting_pct <- as.numeric(prediction_draft_data$true_shooting_pct)
-prediction_draft_data$true_shooting_pct <- as.numeric(prediction_draft_data$true_shooting_pct)
-prediction_draft_data$effective_field_goal_pct <- as.numeric(prediction_draft_data$effective_field_goal_pct)
-prediction_draft_data$total_shooting_pct <- as.numeric(prediction_draft_data$total_shooting_pct)
-prediction_draft_data$off_reb_rate_college <- as.numeric(prediction_draft_data$off_reb_rate_college)/100
-prediction_draft_data$def_reb_rate_college <- as.numeric(prediction_draft_data$def_reb_rate_college)/100
-prediction_draft_data$tot_reb_rate_college <- as.numeric(prediction_draft_data$tot_reb_rate_college)/100
-prediction_draft_data$assist_rate_college <- as.numeric(prediction_draft_data$assist_rate_college)/100
-prediction_draft_data$turnover_rate_college <- as.numeric(prediction_draft_data$turnover_rate_college)/100
-prediction_draft_data$steal_rate_college <- as.numeric(prediction_draft_data$steal_rate_college)/100
-prediction_draft_data$block_rate_college <- as.numeric(prediction_draft_data$block_rate_college)/100
-prediction_draft_data$usage_rate_college <- as.numeric(prediction_draft_data$usage_rate_college)/100
-prediction_draft_data$pure_point_rating <- as.numeric(prediction_draft_data$pure_point_rating)
-prediction_draft_data$points_per_shot <- as.numeric(prediction_draft_data$points_per_shot)
-prediction_draft_data$off_rating <- as.numeric(prediction_draft_data$off_rating)
-prediction_draft_data$def_rating <- as.numeric(prediction_draft_data$def_rating)
-prediction_draft_data$net_rating <- as.numeric(prediction_draft_data$net_rating)
-prediction_draft_data$floor_impact_counter <- as.numeric(prediction_draft_data$floor_impact_counter)
-prediction_draft_data$PER <- as.numeric(prediction_draft_data$PER)
+prediction_draft_data_2018$Player <- as.character(prediction_draft_data_2018$Player)
+prediction_draft_data_2018$team_name_college <- as.character(prediction_draft_data_2018$team_name_college)
+prediction_draft_data_2018$true_shooting_pct <- as.numeric(prediction_draft_data_2018$true_shooting_pct)
+prediction_draft_data_2018$true_shooting_pct <- as.numeric(prediction_draft_data_2018$true_shooting_pct)
+prediction_draft_data_2018$effective_field_goal_pct <- as.numeric(prediction_draft_data_2018$effective_field_goal_pct)
+prediction_draft_data_2018$total_shooting_pct <- as.numeric(prediction_draft_data_2018$total_shooting_pct)
+prediction_draft_data_2018$off_reb_rate_college <- as.numeric(prediction_draft_data_2018$off_reb_rate_college)/100
+prediction_draft_data_2018$def_reb_rate_college <- as.numeric(prediction_draft_data_2018$def_reb_rate_college)/100
+prediction_draft_data_2018$tot_reb_rate_college <- as.numeric(prediction_draft_data_2018$tot_reb_rate_college)/100
+prediction_draft_data_2018$assist_rate_college <- as.numeric(prediction_draft_data_2018$assist_rate_college)/100
+prediction_draft_data_2018$turnover_rate_college <- as.numeric(prediction_draft_data_2018$turnover_rate_college)/100
+prediction_draft_data_2018$steal_rate_college <- as.numeric(prediction_draft_data_2018$steal_rate_college)/100
+prediction_draft_data_2018$block_rate_college <- as.numeric(prediction_draft_data_2018$block_rate_college)/100
+prediction_draft_data_2018$usage_rate_college <- as.numeric(prediction_draft_data_2018$usage_rate_college)/100
+prediction_draft_data_2018$pure_point_rating <- as.numeric(prediction_draft_data_2018$pure_point_rating)
+prediction_draft_data_2018$points_per_shot <- as.numeric(prediction_draft_data_2018$points_per_shot)
+prediction_draft_data_2018$off_rating <- as.numeric(prediction_draft_data_2018$off_rating)
+prediction_draft_data_2018$def_rating <- as.numeric(prediction_draft_data_2018$def_rating)
+prediction_draft_data_2018$net_rating <- as.numeric(prediction_draft_data_2018$net_rating)
+prediction_draft_data_2018$floor_impact_counter <- as.numeric(prediction_draft_data_2018$floor_impact_counter)
+prediction_draft_data_2018$PER <- as.numeric(prediction_draft_data_2018$PER)
+write_csv(prediction_draft_data_2018,"draft_2018_info.csv")
+
+
+
+# 2018-19 CBB data converted to useable dataset individually
+# Bring in predictors from 2018-19 data set to predict 2019-20 values
+
+prediction_draft_data_2019 <- cbb_list[[15]]
+colnames(prediction_draft_data_2019) <- c('Player', 'team_name_college', 'true_shooting_pct_college', 'effective_field_goal_pct_college', 'total_shooting_pct_college',
+                                     'off_reb_rate_college', 'def_reb_rate_college', 'tot_reb_rate_college', 'assist_rate_college', 'turnover_rate_college','steal_rate_college',
+                                     'block_rate_college', 'usage_rate_college', 'pure_point_rating_college', 'points_per_shot_college', 'off_rating_college', 'def_rating_college',
+                                     'net_rating_college', 'floor_impact_counter_college', 'PER_college')
+prediction_draft_data_2019$Player <- as.character(prediction_draft_data_2019$Player)
+prediction_draft_data_2019$team_name_college <- as.character(prediction_draft_data_2019$team_name_college)
+prediction_draft_data_2019$true_shooting_pct <- as.numeric(prediction_draft_data_2019$true_shooting_pct)
+prediction_draft_data_2019$true_shooting_pct <- as.numeric(prediction_draft_data_2019$true_shooting_pct)
+prediction_draft_data_2019$effective_field_goal_pct <- as.numeric(prediction_draft_data_2019$effective_field_goal_pct)
+prediction_draft_data_2019$total_shooting_pct <- as.numeric(prediction_draft_data_2019$total_shooting_pct)
+prediction_draft_data_2019$off_reb_rate_college <- as.numeric(prediction_draft_data_2019$off_reb_rate_college)/100
+prediction_draft_data_2019$def_reb_rate_college <- as.numeric(prediction_draft_data_2019$def_reb_rate_college)/100
+prediction_draft_data_2019$tot_reb_rate_college <- as.numeric(prediction_draft_data_2019$tot_reb_rate_college)/100
+prediction_draft_data_2019$assist_rate_college <- as.numeric(prediction_draft_data_2019$assist_rate_college)/100
+prediction_draft_data_2019$turnover_rate_college <- as.numeric(prediction_draft_data_2019$turnover_rate_college)/100
+prediction_draft_data_2019$steal_rate_college <- as.numeric(prediction_draft_data_2019$steal_rate_college)/100
+prediction_draft_data_2019$block_rate_college <- as.numeric(prediction_draft_data_2019$block_rate_college)/100
+prediction_draft_data_2019$usage_rate_college <- as.numeric(prediction_draft_data_2019$usage_rate_college)/100
+prediction_draft_data_2019$pure_point_rating <- as.numeric(prediction_draft_data_2019$pure_point_rating)
+prediction_draft_data_2019$points_per_shot <- as.numeric(prediction_draft_data_2019$points_per_shot)
+prediction_draft_data_2019$off_rating <- as.numeric(prediction_draft_data_2019$off_rating)
+prediction_draft_data_2019$def_rating <- as.numeric(prediction_draft_data_2019$def_rating)
+prediction_draft_data_2019$net_rating <- as.numeric(prediction_draft_data_2019$net_rating)
+prediction_draft_data_2019$floor_impact_counter <- as.numeric(prediction_draft_data_2019$floor_impact_counter)
+prediction_draft_data_2019$PER <- as.numeric(prediction_draft_data_2019$PER)
+write_csv(prediction_draft_data_2019,"draft_2019_info.csv")
 
