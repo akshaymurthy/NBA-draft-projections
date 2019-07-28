@@ -20,4 +20,6 @@ Mean_prediction_analysis.R uses the defined models to provide predictions on the
 
 Probabilistic_performance_projection.R takes the constructed models to construct probabilistic regression projections that illustrate the likelihood of a player achieving a particular level of performance in a given season following being drafted.
 
+HTML files provide examples of the plots created using these scripts with the help of plotly.
+
 Enjoy!
